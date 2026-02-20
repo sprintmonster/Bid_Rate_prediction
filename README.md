@@ -5,9 +5,9 @@
 ## 📋 모델 개요
 
 ### 핵심 아이디어
-
-- **Quantile Regression**: 타겟 변수의 조건부 분위수(0.1, 0.5, 0.9 등)를 직접 학습
+- **Quantile Regression**: 타겟 변수의 조건부 **10개 분위수**를 직접 학습
 - **KDE 변환**: 학습된 quantile들을 KDE로 스무딩 → 연속적 **확률밀도함수(PDF)** 생성
+
 
 ![모델 아키텍처 개요][file:20]
 
@@ -17,29 +17,13 @@
 
 **수식**:
 
-
-![Pinball Loss 시각화][file:16]
-
-**특징**:
-- **τ > 0.5**: 과소추정 시 더 큰 패널티 (상승 슬로프 τ)
-- **τ < 0.5**: 과대추정 시 더 큰 패널티 (하강 슬로프 τ-1)
-
-![Pinball Loss 상세][file:17]
-
-## 🔗 2. Non-Crossing 제약
-
-quantile 레벨 τ_i < τ_j 일 때 `ŷ_τi ≤ ŷ_τj` 보장.
-
-**Non-crossing Loss**:
-
-
 **최종 Objective**:
 
 ![Non-crossing 제약][file:18]
 
 ## 🔄 3. KDE 변환 과정
 
-학습된 quantile 값들을 KDE로 PDF 재구성.
+**10개 quantile** 값들을 KDE로 PDF 재구성.
 
 **Transformer KDE**:
 
@@ -47,37 +31,16 @@ quantile 레벨 τ_i < τ_j 일 때 `ŷ_τi ≤ ŷ_τj` 보장.
 
 ## 🏗️ 4. 모델 아키텍처
 
+
 ![전체 모델 구조][file:20]
 
 **구성**:
-- **Transformer Encoder**: window_size × features 입력 처리
-- **Quantile Heads**: 병렬 MLP (hidden dim 사용자 정의)
-- **KDE Post-processing**: quantile → PDF 변환
+- **Transformer Encoder**: `window_size × features` 입력 처리
+- **10개 Quantile Heads**: 병렬 MLP (각 τ별 독립 head)
+- **KDE Post-processing**: 10개 quantile → PDF 변환
 
 ## ⚖️ 5. 종합 Objective Function
 
-![종합 손실함수][file:19]
-
-## 📊 6. 평가 지표
-
-| 지표 | 설명 | 목표 |
-|------|------|------|
-| **Coverage** | 실제값이 PI 안에 포함되는 비율 | nominal coverage (90% PI → 90%) |
-| **Sharpness** | 예측구간 폭 | 최소화 |
-
-## 💻 구현 가이드
-
-```python
-class QuantileKDEModel(nn.Module):
-    def __init__(self, quantiles=[0.1,0.5,0.9], window_size=32):
-        self.encoder = TransformerEncoder(window_size)
-        self.heads = nn.ModuleList([MLP() for _ in quantiles])
-    
-    def forward(self, x):
-        h = self.encoder(x)
-        quantiles = torch.stack([head(h) for head in self.heads], dim=-1)
-        pdf = kde_from_quantiles(quantiles)
-        return pdf, quantiles
 
 ![종합 손실함수][file:19]
 
@@ -85,24 +48,34 @@ class QuantileKDEModel(nn.Module):
 
 | 지표 | 설명 | 목표 |
 |------|------|------|
-| **Coverage** | 실제값이 PI 안에 포함되는 비율 | nominal coverage (90% PI → 90%) |
+| **Coverage** | 실제값이 PI 안에 포함되는 비율 | nominal coverage |
 | **Sharpness** | 예측구간 폭 | 최소화 |
+
+**예시** (10개 quantile 기반):
 
 ## 💻 구현 가이드
 
 ```python
 class QuantileKDEModel(nn.Module):
-    def __init__(self, quantiles=[0.1,0.5,0.9], window_size=32):
+    def __init__(self, quantiles=[0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95], window_size=32):
         self.encoder = TransformerEncoder(window_size)
-        self.heads = nn.ModuleList([MLP() for _ in quantiles])
+        self.heads = nn.ModuleList([MLP() for _ in quantiles])  # 11개 heads
     
     def forward(self, x):
         h = self.encoder(x)
-        quantiles = torch.stack([head(h) for head in self.heads], dim=-1)
-        pdf = kde_from_quantiles(quantiles)
+        quantiles = torch.stack([head(h) for head in self.heads], dim=-1)  # [B, 11]
+        pdf = kde_from_quantiles(quantiles)  # 11개 quantile → PDF
         return pdf, quantiles
-quantiles: [0.05, 0.25, 0.5, 0.75, 0.95]
+quantiles: [0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95]  # 11개 실제
 KDE bandwidth: 0.1~1.0
-λ_nc: 0.01~0.1
+λ_nc: 0.01~0.1 (non-crossing 강도)
+window_size: 32 (입력 시퀀스 길이)
 
 
+
+| 특징                 | 이점                 |
+| ------------------ | ------------------ |
+| 10개 Multi-Quantile | 세밀한 분포 추정          |
+| Non-crossing       | 분위수 순서 보장 (45개 페어) |
+| KDE 스무딩            | 연속적 PDF 생성         |
+| Transformer        | 시계열 최적화            |
