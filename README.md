@@ -71,11 +71,3 @@ KDE bandwidth: 0.1~1.0
 λ_nc: 0.01~0.1 (non-crossing 강도)
 window_size: 32 (입력 시퀀스 길이)
 
-
-
-| 특징                 | 이점                 |
-| ------------------ | ------------------ |
-| 10개 Multi-Quantile | 세밀한 분포 추정          |
-| Non-crossing       | 분위수 순서 보장 (45개 페어) |
-| KDE 스무딩            | 연속적 PDF 생성         |
-| Transformer        | 시계열 최적화            |
