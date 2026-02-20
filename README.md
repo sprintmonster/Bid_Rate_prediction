@@ -1,73 +1,56 @@
-# Quantile Regression + KDE 기반 확률 회귀 모델
+## 🏗️ 상세 구현 내용 (AI/ML)
 
-이 문서는 Quantile Regression과 Kernel Density Estimation(KDE)을 결합한 비모수적 확률 예측 모델의 구조와 학습 방식을 설명합니다.
+### 📊 **사정율 예측 AI 모델** ⭐
 
-## 📋 모델 개요
+<div align="center">
+  <!-- 전체 모델 아키텍처 이미지 -->
+  <img src="./ops/images/ai_model_architecture.png" alt="AI 모델 전체 아키텍처" width="700"/>
+  <br><b>Quantile Regression (11개 Quantile) + KDE</b>
+</div>
 
-### 핵심 아이디어
-- **Quantile Regression**: 타겟 변수의 조건부 **10개 분위수**를 직접 학습
-- **KDE 변환**: 학습된 quantile들을 KDE로 스무딩 → 연속적 **확률밀도함수(PDF)** 생성
+#### 1️⃣ **Pinball Loss**
+<div align="center">
+  <!-- Pinball Loss 그래프 -->
+  <img src="./ops/images/pinball_loss.png" alt="Pinball Loss 함수" width="500"/>
+  <br><sub>L_τ(ŷ-y) = max(τ(ŷ-y), (τ-1)(ŷ-y))</sub>
+</div>
 
+#### 2️⃣ **Non-Crossing 제약**
+<div align="center">
+  <!-- Non-crossing 데모 이미지 -->
+  <img src="./ops/images/non_crossing_constraint.png" alt="Non-crossing 제약" width="500"/>
+  <br><sub>L_nc = Σ_(i<j) max(0, q̂_τi - q̂_τj)</sub>
+</div>
 
-![모델 아키텍처 개요][file:20]
+#### 3️⃣ **KDE 변환**
+<div align="center">
+  <!-- KDE 변환 과정 이미지 -->
+  <img src="./ops/images/kde_transformation.png" alt="Quantile → KDE 변환" width="600"/>
+  <br><sub>f̂_KDE(y) = 1/(11h) Σ K((y - q̂_τi)/h)</sub>
+</div>
 
-## 🎯 1. Pinball Loss (분위수 손실)
+#### 4️⃣ **최종 Objective**
+<div align="center">
+  <!-- 종합 손실 함수 이미지 -->
+  <img src="./ops/images/total_objective.png" alt="최종 손실 함수" width="500"/>
+  <br><sub>L_total = 1/11 Σ L_τ + λ L_nc</sub>
+</div>
 
-분위수 τ에 대한 asymmetric loss로, 예측 오차 방향별 가중치 차등 적용.
+---
 
-**수식**:
+### 🔢 **데이터 분석**
+<div align="center">
+  <!-- 데이터 분포/특성 이미지 -->
+  <img src="./ops/images/data_analysis.png" alt="나라장터 데이터 분석" width="700"/>
+  <br><sub>588,109건 (2021~2025) 전처리 완료</sub>
+</div>
 
-**최종 Objective**:
+### 🧠 **RAG + 멀티모달 Agent**
+<div align="center">
+  <!-- RAG 파이프라인 이미지 -->
+  <img src="./ops/images/rag_pipeline.png" alt="RAG + Agent 시스템" width="700"/>
+</div>
 
-![Non-crossing 제약][file:18]
+---
 
-## 🔄 3. KDE 변환 과정
-
-**10개 quantile** 값들을 KDE로 PDF 재구성.
-
-**Transformer KDE**:
-
-![KDE 변환 과정][file:21]
-
-## 🏗️ 4. 모델 아키텍처
-
-
-![전체 모델 구조][file:20]
-
-**구성**:
-- **Transformer Encoder**: `window_size × features` 입력 처리
-- **10개 Quantile Heads**: 병렬 MLP (각 τ별 독립 head)
-- **KDE Post-processing**: 10개 quantile → PDF 변환
-
-## ⚖️ 5. 종합 Objective Function
-
-
-![종합 손실함수][file:19]
-
-## 📊 6. 평가 지표
-
-| 지표 | 설명 | 목표 |
-|------|------|------|
-| **Coverage** | 실제값이 PI 안에 포함되는 비율 | nominal coverage |
-| **Sharpness** | 예측구간 폭 | 최소화 |
-
-**예시** (10개 quantile 기반):
-
-## 💻 구현 가이드
-
-```python
-class QuantileKDEModel(nn.Module):
-    def __init__(self, quantiles=[0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95], window_size=32):
-        self.encoder = TransformerEncoder(window_size)
-        self.heads = nn.ModuleList([MLP() for _ in quantiles])  # 11개 heads
-    
-    def forward(self, x):
-        h = self.encoder(x)
-        quantiles = torch.stack([head(h) for head in self.heads], dim=-1)  # [B, 11]
-        pdf = kde_from_quantiles(quantiles)  # 11개 quantile → PDF
-        return pdf, quantiles
-quantiles: [0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95]  # 11개 실제
-KDE bandwidth: 0.1~1.0
-λ_nc: 0.01~0.1 (non-crossing 강도)
-window_size: 32 (입력 시퀀스 길이)
-
+**📁 이미지 파일 경로**: `./ops/images/`
